@@ -160,7 +160,6 @@ def create_keyword():
     rp = redis_pool()
     for e in entries:
         rp.delete('description_{}'.format(e['id']))
-        # htmlify(e)
     rp.incr("entry_count")
 
     return redirect('/')
