@@ -101,6 +101,10 @@ def get_initialize():
     # cur.execute('SELECT * FROM star')
     # cur.execute('SELECT * FROM user')
 
+    cur.execute('SELECT id, keyword, description FROM entry')
+    for entry in entries:
+        htmlify(entry)
+
     rp = redis_pool()
     result = rp.get("entry_count")
     if result == None:
