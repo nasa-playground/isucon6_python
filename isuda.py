@@ -36,8 +36,7 @@ def redis_pool():
     if hasattr(request, 'redis'):
         return request.redis
     # FIXME ここらへん環境変数化したい
-    pool = redis.ConnectionPool(host='localhost', port=6379, db=0)
-    r = redis.StrictRedis(connection_pool=pool)
+    r = redis.Redis(unix_socket_path='/var/run/redis/redis.sock')
     return r
 
 def dbh():
