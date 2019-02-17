@@ -162,12 +162,13 @@ def create_keyword():
         author_id = %s, keyword = %s, description = %s, updated_at = NOW()
 """
     cur.execute(sql, (user_id, keyword, description, user_id, keyword, description))
-    cur.execute("SELECT id from entry where description like '%" + keyword + "%'")
+    cur.execute("SELECT id, description from entry where description like '%" + keyword + "%'")
     entries = cur.fetchall()
 
     rp = redis_pool()
     for e in entries:
         rp.delete('description_{}'.format(e['id']))
+        # htmlify(e)
     rp.incr("entry_count")
 
     return redirect('/')
@@ -248,6 +249,7 @@ def delete_keyword(keyword):
     if row == None:
         abort(404)
 
+    redis_pool().delete('description_{}'.format(row['id']))
     cur.execute('DELETE FROM entry WHERE keyword = %s', (keyword,))
 
     return redirect('/')
