@@ -97,14 +97,20 @@ def authenticate(func):
 def get_initialize():
     cur = dbh().cursor()
     cur.execute('DELETE FROM entry WHERE id > 7101')
-    origin = config('isutar_origin')
-    urllib.request.urlopen(origin + '/initialize')
-    cur = dbh().cursor()
     cur.execute('TRUNCATE star')
 
-    cur.execute('SELECT * FROM entry')
-    cur.execute('SELECT * FROM star')
-    cur.execute('SELECT * FROM user')
+    # cur.execute('SELECT * FROM entry')
+    # cur.execute('SELECT * FROM star')
+    # cur.execute('SELECT * FROM user')
+
+    rp = redis_pool()
+    result = rp.get("entry_count")
+    if result == None:
+        cur.execute('SELECT COUNT(1) AS count FROM entry')
+        row = cur.fetchone()
+        result = str(row['count'], encoding='utf-8')
+        rp.set("entry_count", result)
+
     return jsonify(result = 'ok')
 
 @app.route('/')
@@ -114,16 +120,15 @@ def get_index():
     page = int(request.args.get('page', '1'))
 
     cur = dbh().cursor()
-    cur.execute('SELECT keyword, description FROM entry ORDER BY updated_at DESC LIMIT %s OFFSET %s', (PER_PAGE, PER_PAGE * (page - 1),))
+    cur.execute('SELECT id, keyword, description FROM entry ORDER BY updated_at DESC LIMIT %s OFFSET %s', (PER_PAGE, PER_PAGE * (page - 1),))
     entries = cur.fetchall()
     for entry in entries:
-        entry['html'] = htmlify(entry['description'])
         # FIXME ここN+1です
+        entry['html'] = htmlify(entry)
         entry['stars'] = load_stars(entry['keyword'])
 
-    cur.execute('SELECT COUNT(1) AS count FROM entry')
-    row = cur.fetchone()
-    total_entries = row['count']
+    result = int(redis_pool().get("entry_count"))
+    total_entries = result
     last_page = int(math.ceil(total_entries / PER_PAGE))
     pages = range(max(1, page - 5), min(last_page, page+5) + 1)
 
@@ -147,7 +152,6 @@ def create_keyword():
     if is_spam_contents(description) or is_spam_contents(keyword):
         abort(400)
 
-    redis_pool().delete('keywords')
     cur = dbh().cursor()
     sql = """
         INSERT INTO entry (author_id, keyword, description, created_at, updated_at)
@@ -156,6 +160,13 @@ def create_keyword():
         author_id = %s, keyword = %s, description = %s, updated_at = NOW()
 """
     cur.execute(sql, (user_id, keyword, description, user_id, keyword, description))
+    cur.execute("SELECT id from entry where description like '%" + keyword + "%'")
+    entries = cur.fetchall()
+
+    rp = redis_pool()
+    for e in entries:
+        rp.delete('description_{}'.format(e['id']))
+    rp.incr("entry_count")
 
     return redirect('/')
 
@@ -213,12 +224,12 @@ def get_keyword(keyword):
         abort(400)
 
     cur = dbh().cursor()
-    cur.execute('SELECT keyword, description FROM entry WHERE keyword = %s', (keyword,))
+    cur.execute('SELECT id, keyword, description FROM entry WHERE keyword = %s', (keyword,))
     entry = cur.fetchone()
     if entry == None:
         abort(404)
 
-    entry['html'] = htmlify(entry['description'])
+    entry['html'] = htmlify(entry)
     entry['stars'] = load_stars(entry['keyword'])
     return render_template('keyword.html', entry = entry)
 
@@ -239,18 +250,15 @@ def delete_keyword(keyword):
 
     return redirect('/')
 
-def htmlify(content):
+def htmlify(entry):
+    content = entry['description']
     if content == None or content == '':
         return ''
 
     rp = redis_pool()
-    # length = rp.llen('keywords')
-    # keywords = rp.lrange('keywords', 0 , length)
-    # if keywords == []:
-        # for k in keywords:
-        #     rp.rpush('keywords', k['keyword'])
-        # length = rp.llen('keywords')
-        # keywords = rp.lrange('keywords', 0 , length)
+    result = rp.get("description_{}".format(entry['id']))
+    if result != None:
+        return str(result, encoding='utf-8')
 
     cur = dbh().cursor()
     cur.execute('SELECT keyword FROM entry ORDER BY CHARACTER_LENGTH(keyword) DESC')
@@ -270,7 +278,10 @@ def htmlify(content):
         link = "<a href=\"%s\">%s</a>" % (url, html.escape(kw))
         result = re.sub(re.compile(hash), link, result)
 
-    return re.sub(re.compile("\n"), "<br />", result)
+    result = re.sub(re.compile("\n"), "<br />", result)
+
+    redis_pool().set('description_{}'.format(entry['id']), result)
+    return result
 
 def load_stars(keyword):
     cur = dbh().cursor()
