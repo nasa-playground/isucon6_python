@@ -20,9 +20,9 @@ app.secret_key = 'tonymoris'
 _config = {
     'db_host':       os.environ.get('ISUDA_DB_HOST', 'localhost'),
     'db_port':       int(os.environ.get('ISUDA_DB_PORT', '3306')),
+    'db_socket':     os.environ.get('ISUDA_DB_SOCKET', '/var/run/mysqld/mysqld.sock'),
     'db_user':       os.environ.get('ISUDA_DB_USER', 'root'),
     'db_password':   os.environ.get('ISUDA_DB_PASSWORD', ''),
-    'isutar_origin': os.environ.get('ISUTAR_ORIGIN', 'http://localhost:5001'),
     'isupam_origin': os.environ.get('ISUPAM_ORIGIN', 'http://localhost:5050'),
 }
 
@@ -44,8 +44,7 @@ def dbh():
     if hasattr(request, 'isuda_db'):
         return request.isuda_db
     request.isuda_db = MySQLdb.connect(**{
-        'host': config('db_host'),
-        'port': config('db_port'),
+        'unix_socket': config('db_socket'),
         'user': config('db_user'),
         'passwd': config('db_password'),
         'db': 'isuda',
