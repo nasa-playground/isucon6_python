@@ -52,8 +52,8 @@ def dbh():
         'autocommit': True,
     })
     cur = request.isuda_db.cursor()
-    cur.execute("SET SESSION sql_mode='TRADITIONAL,NO_AUTO_VALUE_ON_ZERO,ONLY_FULL_GROUP_BY'")
-    cur.execute('SET NAMES utf8mb4')
+    # cur.execute("SET SESSION sql_mode='TRADITIONAL,NO_AUTO_VALUE_ON_ZERO,ONLY_FULL_GROUP_BY'")
+    # cur.execute('SET NAMES utf8mb4')
     return request.isuda_db
 
 @app.teardown_request
